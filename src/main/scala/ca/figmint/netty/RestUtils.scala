@@ -15,7 +15,6 @@ import org.jboss.netty.handler.codec.http.HttpVersion
 import org.jboss.netty.handler.codec.http.QueryStringDecoder
 import org.jboss.netty.util.CharsetUtil
 
-import akka.actor.Actor
 import akka.event.LoggingAdapter
 			
 /**
@@ -23,17 +22,9 @@ import akka.event.LoggingAdapter
  * 
  */
 trait RestUtils {
-	self: Actor =>
 		
 	val logger: LoggingAdapter
-	val writeAndCloseListener = new ChannelFutureListener {
-		def operationComplete(cf: ChannelFuture) {
-			logger.debug("Write completed")
-			cf.getChannel().close()
-			logger.debug("Channel close requested")
-		}
-	}
-
+	
 	/**
 	 * Splits the path of the request param.
 	 * 
@@ -123,7 +114,7 @@ trait RestUtils {
 	def sendHttpResponse(ctx: ChannelHandlerContext, request: HttpRequest, response: HttpResponse) {
 		logger info("Sending response: {}", response.getStatus)
 		if(ctx.getChannel().isOpen())
-			ctx.getChannel().write(response).addListener(writeAndCloseListener)
+			ctx.getChannel().write(response).addListener(writeAndCloseFutureListener)
 		else
 			logger debug("Closed channel. Dropping response {} for request: {} {} ", response.getStatus, request.getMethod, request.getUri)
 	}
@@ -156,6 +147,15 @@ trait RestUtils {
 	 */
 	def responseCodeForReporting(operation: String, status: String) = {
 		"response." + operation + "." + status
+	}
+	
+	
+	val writeAndCloseFutureListener = new ChannelFutureListener {
+		def operationComplete(cf: ChannelFuture) {
+			logger.debug("Write completed")
+			cf.getChannel().close()
+			logger.debug("Channel close requested")
+		}
 	}
 	
 }

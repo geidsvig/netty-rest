@@ -14,10 +14,8 @@ trait RestServerRouteHandlerRequirements {
 	val instantiationTime: Long
 }
 
-abstract class RestServerRouteHandler extends SimpleChannelUpstreamHandler {
+trait RestServerRouteHandler extends SimpleChannelUpstreamHandler {
 	self: RestServerRouteHandlerRequirements =>
-
-	logger info "RestServerRouteHandler started"
 	
 	val writeAndCloseListener = new ChannelFutureListener { def operationComplete(cf: ChannelFuture) { cf.getChannel().close() } }
 	
