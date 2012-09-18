@@ -10,6 +10,7 @@ trait RestServerRequirements {
 	val logger: akka.event.LoggingAdapter
 	val port: Int
 	val pipelineFactory: RestServerPipelineFactory
+	val timeout: Long
 }
 
 class RestServer {
@@ -24,7 +25,7 @@ class RestServer {
 		bootstrap.setOption("child.keepAlive", false)
 		bootstrap.setOption("child.tcpNoDelay", true)
 		bootstrap.setOption("reuseAddress", true)
-		bootstrap.setOption("connectTimeoutMillis", 4000)
+		bootstrap.setOption("connectTimeoutMillis", timeout)
 		
 		bootstrap.setPipelineFactory(pipelineFactory)
 		

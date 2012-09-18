@@ -14,10 +14,8 @@ trait RestServerRouteHandlerRequirements {
 	val instantiationTime: Long
 }
 
-trait RestServerRouteHandler extends SimpleChannelUpstreamHandler {
+trait RestServerRouteHandler extends SimpleChannelUpstreamHandler with RestUtils {
 	self: RestServerRouteHandlerRequirements =>
-	
-	val writeAndCloseListener = new ChannelFutureListener { def operationComplete(cf: ChannelFuture) { cf.getChannel().close() } }
 	
 	override def messageReceived(ctx: ChannelHandlerContext, msgEvent: MessageEvent) {
 		msgEvent.getMessage() match {
@@ -34,12 +32,6 @@ trait RestServerRouteHandler extends SimpleChannelUpstreamHandler {
 	 * Method left for implementing class to provide.
 	 */
 	def handleHttpRequest(ctx: ChannelHandlerContext, request: HttpRequest)
-	
-	private def respond(ctx: ChannelHandlerContext, response: DefaultHttpResponse) = {
-		logger info("Sending response.")
-		ctx.getChannel().write(response).addListener(writeAndCloseListener)
-		logger info("Closed.")
-	}
 	
 	override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
 		logger error (e.getCause, "Exception caught in handler!")
