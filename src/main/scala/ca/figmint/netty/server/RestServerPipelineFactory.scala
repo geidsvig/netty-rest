@@ -1,14 +1,15 @@
-package ca.figmint.netty
+package ca.figmint.netty.server
 
 import org.jboss.netty.channel.ChannelPipelineFactory
 import org.jboss.netty.channel.Channels
 import org.jboss.netty.handler.codec.http.HttpChunkAggregator
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder
 import org.jboss.netty.handler.codec.http.HttpResponseEncoder
+import ca.figmint.netty.rest.RestRouteHandler
 
 trait RestServerPipelineFactorRequirements {
 	val logger: akka.event.LoggingAdapter
-	val routeHandler: RestServerRouteHandler
+	val routeHandler: RestRouteHandler
 	val chunkSize: Int
 }
 

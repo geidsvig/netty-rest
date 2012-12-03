@@ -1,8 +1,7 @@
-package ca.figmint.netty
+package ca.figmint.netty.rest
 
 import scala.collection.JavaConversions.asScalaBuffer
 import scala.util.matching.Regex
-
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.channel.ChannelFuture
 import org.jboss.netty.channel.ChannelFutureListener
@@ -14,8 +13,9 @@ import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import org.jboss.netty.handler.codec.http.HttpVersion
 import org.jboss.netty.handler.codec.http.QueryStringDecoder
 import org.jboss.netty.util.CharsetUtil
-
 import akka.event.LoggingAdapter
+import org.jboss.netty.channel.Channel
+import org.jboss.netty.handler.codec.http.websocketx.TextWebSocketFrame
 			
 /**
  * It is expected that this trait is used by the RestServerRouteHandler's implementing class.
@@ -24,6 +24,9 @@ import akka.event.LoggingAdapter
 trait RestUtils {
 		
 	val logger: LoggingAdapter
+	
+	val ContentTypeJson = "application/json"
+    val ContentTypeText = "text/plain"
 	
 	/**
 	 * Splits the path of the request param.
@@ -119,8 +122,6 @@ trait RestUtils {
 			logger debug("Closed channel. Dropping response {} for request: {} {} ", response.getStatus, request.getMethod, request.getUri)
 	}
 	
-	val ContentTypeJson = "application/json"
-	val ContentTypeText = "text/plain"
 	def createHttpResponse(status: HttpResponseStatus, msg: String, contentType: String = ContentTypeText) = {
 		val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status)
 		response.setHeader("Content-Type", contentType + "; charset=UTF-8");

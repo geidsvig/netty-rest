@@ -3,7 +3,7 @@ import Keys._
 import akka.sbt.AkkaKernelPlugin
 import akka.sbt.AkkaKernelPlugin.{ Dist, outputDirectory, distJvmOptions }
 
-object HootBombRestKernelBuild extends Build {
+object RestKernelBuild extends Build {
 	val Organization = "ca.figmintgames"
 	val Version = "0.1"
 	val ScalaVersion = "2.9.1"

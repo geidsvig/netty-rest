@@ -1,16 +1,15 @@
-package ca.figmint.netty
+package ca.figmint.netty.server
 
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
-
 import org.jboss.netty.bootstrap.ServerBootstrap
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory
 
 trait RestServerRequirements {
 	val logger: akka.event.LoggingAdapter
 	val port: Int
-	val pipelineFactory: RestServerPipelineFactory
 	val timeout: Long
+	val pipelineFactory: RestServerPipelineFactory
 }
 
 class RestServer {
