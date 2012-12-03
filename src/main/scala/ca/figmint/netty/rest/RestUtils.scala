@@ -49,12 +49,8 @@ trait RestUtils {
 	 *  @param regex
 	 *  @returns true if path fits regex. false otherwise
 	 */
-	def pathMatches(path: String, regex: Regex): Boolean = {
-		path match {
-			case x if regex.pattern.matcher(x).matches => true
-			case _ => false
-		}
-	}
+	def pathMatches(path: String, regex: Regex): Boolean =
+		regex.findFirstIn(path).isDefined
 	
 	/**
 	 * Extracts the content body from the request param as UTF-8.

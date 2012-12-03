@@ -4,7 +4,7 @@ import akka.sbt.AkkaKernelPlugin
 import akka.sbt.AkkaKernelPlugin.{ Dist, outputDirectory, distJvmOptions }
 
 object RestKernelBuild extends Build {
-	val Organization = "ca.figmintgames"
+	val Organization = "ca.figmint"
 	val Version = "0.1"
 	val ScalaVersion = "2.9.1"
 
