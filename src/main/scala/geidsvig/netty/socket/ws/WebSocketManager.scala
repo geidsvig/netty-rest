@@ -49,10 +49,8 @@ abstract class WebSocketManager {
    * @param payload
    */
   def sendWebSocketFrame(channel: Option[Channel], payload: String) {
-    val frame = new TextWebSocketFrame(ChannelBuffers.copiedBuffer(payload, CharsetUtil.UTF_8))
-
     channel match {
-      case Some(chan) if (chan.isOpen) => chan.write(frame)
+      case Some(chan) if (chan.isOpen) => chan.write(new TextWebSocketFrame(ChannelBuffers.copiedBuffer(payload, CharsetUtil.UTF_8)))
       case Some(chan) => logger warning ("Trying to push {} with closed channel", payload)
       case None => logger warning ("Trying to push with no channel. Dropping")
     }

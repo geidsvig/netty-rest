@@ -31,7 +31,8 @@ trait RestUtils {
     val decoder = new org.jboss.netty.handler.codec.http.QueryStringDecoder(request.getUri)
     decoder.getPath.split("/").toList match {
       case List() => List()
-      case list => list tail // removes first empty element because split on path will always create empty item in location 0
+      case (head :: tail) => tail // removes first empty element because split on path will always create empty item in location 0
+      case _ => List()
     }
   }
 
@@ -43,10 +44,7 @@ trait RestUtils {
    *  @returns true if path fits regex. false otherwise
    */
   def pathMatches(path: String, regex: Regex): Boolean = {
-    path match {
-      case x if regex.pattern.matcher(x).matches => true
-      case _ => false
-    }
+    regex.pattern.matcher(path).matches
   }
 
   /**
