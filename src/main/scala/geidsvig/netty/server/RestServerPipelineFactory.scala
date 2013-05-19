@@ -1,11 +1,11 @@
-package ca.figmint.netty.server
+package geidsvig.netty.server
 
 import org.jboss.netty.channel.ChannelPipelineFactory
 import org.jboss.netty.channel.Channels
 import org.jboss.netty.handler.codec.http.HttpChunkAggregator
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder
 import org.jboss.netty.handler.codec.http.HttpResponseEncoder
-import ca.figmint.netty.rest.RestRouteHandler
+import geidsvig.netty.rest.RestRouteHandler
 
 trait RestServerPipelineFactorRequirements {
 	val logger: akka.event.LoggingAdapter
