@@ -37,7 +37,7 @@ abstract class RestRouteHandler extends SimpleChannelUpstreamHandler
   self: RestRouteHandlerRequirements =>
 
   val cometPath = new Regex("/comet")
-  val websocketPath = new Regex("/ws")
+  val websocketPath = new Regex("/websocket")
 
   /**
    * @param ctx
