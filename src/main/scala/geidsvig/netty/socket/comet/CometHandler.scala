@@ -10,6 +10,13 @@ import akka.actor.Cancellable
 import scala.concurrent.duration.Duration
 import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.jboss.netty.handler.codec.http.HttpResponseStatus
+import org.jboss.netty.handler.codec.http.DefaultHttpResponse
+import org.jboss.netty.handler.codec.http.HttpVersion
+import org.jboss.netty.buffer.ChannelBuffers
+import org.jboss.netty.util.CharsetUtil
+import scala.collection.JavaConversions.asScalaBuffer
+import org.jboss.netty.channel.ChannelFutureListener
  
 /**
  * Use this case class when initializing the Comet socket connection.
@@ -18,27 +25,60 @@ case class CometRequest(ctx: ChannelHandlerContext, request: HttpRequest)
 
 /**
  * Use this case class when you need to send the response message.
+ * 
+ * @param response
  */
-case class CometResponse(response: Array[Byte])
+case class CometResponse(packet: CometPacket)
+
+/**
+ * Format is JSON and supprots jsonp callback.
+ * 
+ * @param statusCode an HTTP status code
+ * @param content JSON formatted content
+ * @param callback
+ */
+case class CometPacket(responseStatus: HttpResponseStatus, content: String) {
+  /**
+   * This helper method wraps a status code and JSON content into a single response string.
+   */
+  def toJSON() = {
+    """{content:%s}""".format(content)
+  }
+}
 
 trait CometHandlerRequirements {
   val receiveTimeout: Long
   val responseTimeout: Long
 }
 
-// has receive timeout. configured timeout value
-// holds connection until either timeout, or message received and send to client
+/**
+ * http://en.wikipedia.org/wiki/Comet_(programming)
+ * Long Polling Comet Handler:
+ * Script tag long polling.
+ * 
+ * http://objectcloud.kicks-ass.net/Docs/Specs/Comet%20Protocol.page
+ * 
+ * has receive timeout. configured timeout value
+ * holds connection until either timeout, or message received and send to client.
+ * actor lives until receiveTimeout occurs.
+ */
 abstract class CometHandler extends Actor with ActorLogging {
   this: CometHandlerRequirements =>
+  
+  val startTime = System.currentTimeMillis
 
   case class CancellableCometRequest(cancellable: Cancellable, ctx: ChannelHandlerContext, request: HttpRequest)
   case object CometResponseTimeout
 
   var cancellableCometRequest: Option[CancellableCometRequest] = None
 
-  context.setReceiveTimeout(Duration.create(receiveTimeout, TimeUnit.MILLISECONDS))
+  // set default receiveTimeout because trait injected timeout value is not loaded yet
+  context.setReceiveTimeout(Duration.create(5000, TimeUnit.MILLISECONDS))
   def receive = {
-    case CometRequest(ctx, request) => handleCometRequest(ctx, request)
+    case CometRequest(ctx, request) => {
+      context.setReceiveTimeout(Duration.create(receiveTimeout, TimeUnit.MILLISECONDS))
+      handleCometRequest(ctx, request)
+    }
     case CometResponse(response) => handleCometResponse(response)
     case CometResponseTimeout => handleResponseTimeout()
     case ReceiveTimeout => handleReceiveTimeout()
@@ -72,7 +112,7 @@ abstract class CometHandler extends Actor with ActorLogging {
    *  
    */
   def handleResponseTimeout() {
-    handleCometResponse("RESPONSE TIMEOUT".getBytes)
+    handleCometResponse(CometPacket(HttpResponseStatus.REQUEST_TIMEOUT, "response timeout"))
   }
 
   /**
@@ -80,25 +120,44 @@ abstract class CometHandler extends Actor with ActorLogging {
    * send the response message.
    * 
    * @param response
-   * @returns true if response send successfully, false otherwise.
    */
-  private def handleCometResponse(response: Array[Byte]): Boolean = {
-    var sentResponse = false
+  private def handleCometResponse(cometFrame: CometPacket) {
     cancellableCometRequest match {
       case Some(ccr) => {
         Option(ccr.ctx.getChannel) match {
           case Some(chan) if (chan.isOpen) => {
-            chan.write(response)
-            sentResponse = true
+            val response = createCometResponse(cometFrame.responseStatus, ccr.request, cometFrame.content)
+            chan.write(response).addListener(ChannelFutureListener.CLOSE)
           }
-          case Some(chan) => log warning ("Trying to respond {} with closed channel", new String(response))
+          case Some(chan) => log warning ("Trying to respond {} with closed channel", cometFrame.toJSON)
           case None => log warning ("Trying to respond with no channel. Dropping")
         }
         handleCancellingCometRequest()
       }
       case None => log warning ("Trying to respond without a comet connection. Dropping.")
     }
-    sentResponse
+  }
+  
+  /**
+   * Create javascript jsonp based long polling comet response.
+   * 
+   * @param responseStatus
+   * @param callback
+   * @param content
+   */
+  private def createCometResponse(responseStatus: HttpResponseStatus, request: HttpRequest, content: String) = {
+    val decoder = new org.jboss.netty.handler.codec.http.QueryStringDecoder(request.getUri)
+    val params = decoder.getParameters
+    val callback = params.get("callback").headOption
+    
+    val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, responseStatus)
+    response.setHeader("Content-Type", "text/javascript")
+    val text = callback match {
+      case Some(cb) => "%s(%s)" format (cb, content)
+      case None => content
+    }
+    response.setContent(ChannelBuffers.copiedBuffer(text, CharsetUtil.UTF_8))
+    response
   }
 
   /**
@@ -111,7 +170,9 @@ abstract class CometHandler extends Actor with ActorLogging {
         try {
           // TODO check if canceling a completed scheduled event will cause an exception
           ccr.cancellable.cancel()
-        } catch { case _: Throwable => {} }
+        } catch { case t: Throwable => {
+          log error (t.toString)
+        } }
         cancellableCometRequest = None
       }
       case None => {}
@@ -123,6 +184,8 @@ abstract class CometHandler extends Actor with ActorLogging {
    * And cancel the comet request. And stop the actor.
    */
   private def handleReceiveTimeout() {
+    val endTime = System.currentTimeMillis
+    log info ("Comet Handler timeout after {}ms", (endTime - startTime))
     closeChannel()
     handleCancellingCometRequest()
     context.stop(self)

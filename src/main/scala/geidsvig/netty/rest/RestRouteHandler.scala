@@ -1,6 +1,11 @@
 package geidsvig.netty.rest
 
 import scala.util.matching.Regex
+import scala.collection.JavaConversions.asScalaBuffer
+import scala.collection.Set
+import akka.actor.actorRef2Scala
+import akka.event.LoggingAdapter
+import akka.actor.ActorRef
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.channel.ChannelHandlerContext
 import org.jboss.netty.channel.ExceptionEvent
@@ -12,11 +17,7 @@ import org.jboss.netty.handler.codec.http.HttpRequest
 import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import org.jboss.netty.handler.codec.http.HttpVersion
 import org.jboss.netty.util.CharsetUtil
-import akka.actor.actorRef2Scala
-import akka.event.LoggingAdapter
-import akka.actor.ActorRef
 import geidsvig.netty.socket.ws.WebSocketRequest
-import scala.collection.Set
 import geidsvig.netty.socket.ws.WebSocketManager
 import geidsvig.netty.socket.ws.WebSocketRequest
 import geidsvig.netty.socket.comet.CometManager
@@ -62,6 +63,7 @@ abstract class RestRouteHandler extends SimpleChannelUpstreamHandler
   def handleHttpRequest(ctx: ChannelHandlerContext, request: HttpRequest) {
     val method = request.getMethod
     val decoder = new org.jboss.netty.handler.codec.http.QueryStringDecoder(request.getUri)
+    val path = decoder.getPath
 
     logger info (method + " " + request.getUri)
 
@@ -71,7 +73,7 @@ abstract class RestRouteHandler extends SimpleChannelUpstreamHandler
     var handled = false
     pathsAndHandlers map { pathHandler =>
       logger info ("checking {} {} {}", pathHandler.httpMethod, pathHandler.regex, pathHandler.actorRef)
-      (method, decoder.getPath) match {
+      (method, path) match {
         case (httpMethod, requestedPath) if pathMatches(requestedPath, pathHandler.regex) => {
           logger info ("matching handler found for {} {} {}", httpMethod, pathHandler.regex, pathHandler.actorRef)
           pathHandler.actorRef ! RestHttpRequest(ctx, request)
@@ -83,7 +85,7 @@ abstract class RestRouteHandler extends SimpleChannelUpstreamHandler
 
     if (!handled) {
       // check if the request is for comet or websocket
-      (method, decoder.getPath) match {
+      (method, path) match {
         case (httpMethod, requestedPath) if pathMatches(requestedPath, cometPath) => {
           cometManager.handleCometRequest(CometRequest(ctx, request))
           handled = true
@@ -99,7 +101,7 @@ abstract class RestRouteHandler extends SimpleChannelUpstreamHandler
     if (!handled) {
       logger info ("no handler found")
       val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND)
-      response.setContent(ChannelBuffers.copiedBuffer("Unrecognized " + method + " " + decoder.getPath, CharsetUtil.UTF_8))
+      response.setContent(ChannelBuffers.copiedBuffer("Unrecognized " + method + " " + path, CharsetUtil.UTF_8))
       sendHttpResponse(ctx, request, response)
     }
   }

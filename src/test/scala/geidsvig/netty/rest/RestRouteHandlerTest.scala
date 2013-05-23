@@ -98,30 +98,30 @@ class RestRouteHandlerTest extends FunSpec with GivenWhenThen {
   describe("A RestRouteHandler") {
 
     it("Should return 404 when route not found") {
-      given("a routeHandler and test context")
+      Given("a routeHandler and test context")
       val routeHandler = new TestRestRouteHandler
       val ctx: MockChannelHandlerContext = new MockChannelHandlerContext(new MockChannel)
 
-      when("an HttpRequest for a route that does not have a defined path handler")
+      When("an HttpRequest for a route that does not have a defined path handler")
       val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/unsupported");
       routeHandler.handleHttpRequest(ctx, request)
 
-      then("returns 404")
+      Then("returns 404")
       val result = ctx.getChannel().httpContent
       val expected = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND)
       assert(result.getStatus() == expected.getStatus())
     }
 
     it("Should return 200 'OK' when route found for /status") {
-      given("a routeHandler and test context")
+      Given("a routeHandler and test context")
       val routeHandler = new TestRestRouteHandler
       val ctx: MockChannelHandlerContext = new MockChannelHandlerContext(new MockChannel)
 
-      when("an HttpRequest for /status route that has a defined path handler")
+      When("an HttpRequest for /status route that has a defined path handler")
       val request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/status");
       routeHandler.handleHttpRequest(ctx, request)
 
-      then("returns 200 'OK'")
+      Then("returns 200 'OK'")
       // because handled by an actor, we need to wait
       TestKit.awaitCond(
         ctx.getChannel().httpContent != null, Duration.create(3000, TimeUnit.MILLISECONDS),
