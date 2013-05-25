@@ -17,6 +17,7 @@ import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.util.CharsetUtil
 import scala.collection.JavaConversions.asScalaBuffer
 import org.jboss.netty.channel.ChannelFutureListener
+import scala.collection.immutable.Nil
  
 /**
  * Use this case class when initializing the Comet socket connection.
@@ -141,6 +142,8 @@ abstract class CometHandler extends Actor with ActorLogging {
   /**
    * Create javascript jsonp based long polling comet response.
    * 
+   * TODO if there is no callback. maybe we want to change our response protocol from jsonp to XMLHttpRequest (XHR)?
+   * 
    * @param responseStatus
    * @param callback
    * @param content
@@ -148,7 +151,10 @@ abstract class CometHandler extends Actor with ActorLogging {
   private def createCometResponse(responseStatus: HttpResponseStatus, request: HttpRequest, content: String) = {
     val decoder = new org.jboss.netty.handler.codec.http.QueryStringDecoder(request.getUri)
     val params = decoder.getParameters
-    val callback = params.get("callback").headOption
+    val callback = params.containsKey("callback") match {
+      case true => params.get("callback").headOption
+      case false => None
+    }
     
     val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, responseStatus)
     response.setHeader("Content-Type", "text/javascript")
