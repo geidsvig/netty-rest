@@ -3,6 +3,7 @@ package geidsvig.netty.socket.comet
 import org.jboss.netty.channel.ChannelHandlerContext
 import org.jboss.netty.handler.codec.http.HttpRequest
 import org.jboss.netty.handler.codec.http.HttpResponse
+import org.jboss.netty.handler.codec.http.QueryStringDecoder
 import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.ReceiveTimeout
@@ -24,12 +25,36 @@ import scala.collection.immutable.Nil
  */
 case class CometRequest(ctx: ChannelHandlerContext, request: HttpRequest)
 
-/**
- * Use this case class when you need to send the response message.
- * 
- * @param response
- */
-case class CometResponse(packet: CometPacket)
+object CometResponse {
+
+  /**
+   * Create javascript jsonp based long polling comet response.
+   * 
+   * TODO if there is no callback. maybe we want to change our response protocol from jsonp to XMLHttpRequest (XHR)?
+   * 
+   * @param responseStatus
+   * @param callback
+   * @param content
+   */
+  def createResponse(responseStatus: HttpResponseStatus, request: HttpRequest, content: String) = {
+    val decoder = new QueryStringDecoder(request.getUri)
+    val params = decoder.getParameters
+    val callback = params.containsKey("callback") match {
+      case true => params.get("callback").headOption
+      case false => None
+    }
+    
+    val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, responseStatus)
+    response.setHeader("Content-Type", "text/javascript")
+    val text = callback match {
+      case Some(cb) => s"${cb}(${content})"
+      case None => content
+    }
+    response.setContent(ChannelBuffers.copiedBuffer(text, CharsetUtil.UTF_8))
+    response
+  }
+
+}
 
 /**
  * Format is JSON and supprots jsonp callback.
@@ -80,7 +105,6 @@ abstract class CometHandler extends Actor with ActorLogging {
       context.setReceiveTimeout(Duration.create(receiveTimeout, TimeUnit.MILLISECONDS))
       handleCometRequest(ctx, request)
     }
-    case CometResponse(response) => handleCometResponse(response)
     case CometResponseTimeout => handleResponseTimeout()
     case ReceiveTimeout => handleReceiveTimeout()
     case other => log debug ("Unsupported message {}", other)
@@ -107,6 +131,15 @@ abstract class CometHandler extends Actor with ActorLogging {
    * @param request
    */
   def handleRequest(request: HttpRequest)
+  
+  /**
+   * Use this method to send a response back to the client.
+   * 
+   * @param packet
+   */
+  def sendResponse(packet: CometPacket) {
+    handleCometResponse(packet)
+  }
 
   /**
    * Sends a timeout message to the client.
@@ -120,50 +153,23 @@ abstract class CometHandler extends Actor with ActorLogging {
    * Using the cancellableCometRequest to get the channel to response to,
    * send the response message.
    * 
-   * @param response
+   * @param packet
    */
-  private def handleCometResponse(cometFrame: CometPacket) {
+  private def handleCometResponse(packet: CometPacket) {
     cancellableCometRequest match {
       case Some(ccr) => {
         Option(ccr.ctx.getChannel) match {
           case Some(chan) if (chan.isOpen) => {
-            val response = createCometResponse(cometFrame.responseStatus, ccr.request, cometFrame.content)
+            val response = CometResponse.createResponse(packet.responseStatus, ccr.request, packet.content)
             chan.write(response).addListener(ChannelFutureListener.CLOSE)
           }
-          case Some(chan) => log warning ("Trying to respond {} with closed channel", cometFrame.toJSON)
+          case Some(chan) => log warning ("Trying to respond {} with closed channel", packet.toJSON)
           case None => log warning ("Trying to respond with no channel. Dropping")
         }
         handleCancellingCometRequest()
       }
       case None => log warning ("Trying to respond without a comet connection. Dropping.")
     }
-  }
-  
-  /**
-   * Create javascript jsonp based long polling comet response.
-   * 
-   * TODO if there is no callback. maybe we want to change our response protocol from jsonp to XMLHttpRequest (XHR)?
-   * 
-   * @param responseStatus
-   * @param callback
-   * @param content
-   */
-  private def createCometResponse(responseStatus: HttpResponseStatus, request: HttpRequest, content: String) = {
-    val decoder = new org.jboss.netty.handler.codec.http.QueryStringDecoder(request.getUri)
-    val params = decoder.getParameters
-    val callback = params.containsKey("callback") match {
-      case true => params.get("callback").headOption
-      case false => None
-    }
-    
-    val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, responseStatus)
-    response.setHeader("Content-Type", "text/javascript")
-    val text = callback match {
-      case Some(cb) => "%s(%s)" format (cb, content)
-      case None => content
-    }
-    response.setContent(ChannelBuffers.copiedBuffer(text, CharsetUtil.UTF_8))
-    response
   }
 
   /**
@@ -186,18 +192,6 @@ abstract class CometHandler extends Actor with ActorLogging {
   }
 
   /**
-   * When a receive timeout event occurs, we want to close the current comet channel.
-   * And cancel the comet request. And stop the actor.
-   */
-  private def handleReceiveTimeout() {
-    val endTime = System.currentTimeMillis
-    log info ("Comet Handler timeout after {}ms", (endTime - startTime))
-    closeChannel()
-    handleCancellingCometRequest()
-    context.stop(self)
-  }
-  
-  /**
    * Closes the current channel, if one exists.
    */
   private def closeChannel() {
@@ -210,6 +204,18 @@ abstract class CometHandler extends Actor with ActorLogging {
       }
       case None => {}
     }
+  }
+
+  /**
+   * When a receive timeout event occurs, we want to close the current comet channel.
+   * And cancel the comet request. And stop the actor.
+   */
+  private def handleReceiveTimeout() {
+    val endTime = System.currentTimeMillis
+    log info ("Comet Handler timeout after {}ms", (endTime - startTime))
+    closeChannel()
+    handleCancellingCometRequest()
+    context.stop(self)
   }
 
 }

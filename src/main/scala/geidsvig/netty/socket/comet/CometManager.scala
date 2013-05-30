@@ -9,6 +9,7 @@ import org.jboss.netty.channel.Channel
 import akka.actor.actorRef2Scala
 import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import org.jboss.netty.channel.ChannelFutureListener
+import org.jboss.netty.handler.codec.http.HttpRequest
 
 trait CometManagerRequirements {
   val cometHandlerFactory: CometHandlerFactory
@@ -35,7 +36,7 @@ abstract class CometManager {
         hasRegisteredHandler(uuid) match {
           case Some(handler) => {
             val response = CometPacket(HttpResponseStatus.BAD_REQUEST, "duplicate comet request for uuid")
-            sendCometFrame(Option(request.ctx.getChannel()), response)
+            sendCometResponse(Option(request.ctx.getChannel()), request.request, response)
           }
           case None => {
             val handler = cometHandlerFactory.createCometHandler()
@@ -45,7 +46,7 @@ abstract class CometManager {
       }
       case None => {
         val response = CometPacket(HttpResponseStatus.BAD_REQUEST, "missing uuid")
-        sendCometFrame(Option(request.ctx.getChannel()), response)
+        sendCometResponse(Option(request.ctx.getChannel()), request.request, response)
       }
     }
 
@@ -54,12 +55,17 @@ abstract class CometManager {
   /**
    * Simple comet push method.
    *
-   * @param payload should be JSON
+   * @param channel
+   * @param request
+   * @param packet
    */
-  def sendCometFrame(channel: Option[Channel], cometPacket: CometPacket) {
+  def sendCometResponse(channel: Option[Channel], request: HttpRequest, packet: CometPacket) {
     channel match {
-      case Some(chan) if (chan.isOpen) => chan.write(cometPacket.toJSON).addListener(ChannelFutureListener.CLOSE)
-      case Some(chan) => logger warning ("Trying to push {} with closed channel", cometPacket.toJSON)
+      case Some(chan) if (chan.isOpen) => {
+        val response = CometResponse.createResponse(packet.responseStatus, request, packet.content)
+        chan.write(response).addListener(ChannelFutureListener.CLOSE)
+      }
+      case Some(chan) => logger warning ("Trying to push {} with closed channel", packet.toJSON)
       case None => logger warning ("Trying to push with no channel. Dropping")
     }
   }
