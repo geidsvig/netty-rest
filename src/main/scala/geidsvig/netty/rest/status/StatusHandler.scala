@@ -6,13 +6,13 @@ import org.jboss.netty.handler.codec.http.HttpResponseStatus
 
 import akka.actor.Actor
 import akka.actor.ActorLogging
-import geidsvig.netty.rest.RestHttpRequest
+import geidsvig.netty.rest.ChannelWithRequest
 import geidsvig.netty.rest.RestUtils
 
 abstract class StatusHandler extends Actor with ActorLogging with RestUtils {
 
   def receive = {
-    case RestHttpRequest(ctx, request) => status(ctx, request)
+    case ChannelWithRequest(ctx, request) => status(ctx, request)
   }
 
   def status(ctx: ChannelHandlerContext, request: HttpRequest) = {

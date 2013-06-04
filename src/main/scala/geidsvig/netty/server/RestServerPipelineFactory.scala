@@ -27,10 +27,8 @@ abstract class RestServerPipelineFactory extends ChannelPipelineFactory {
 
     pipeline.addLast("httpEncoder", new HttpResponseEncoder)
     pipeline.addLast("httpDecoder", new HttpRequestDecoder)
-    //http://netty.io/4.0/api/io/netty/handler/codec/string/StringEncoder.html
-    //pipeline.addLast("frameDecoder", new LineBasedFrameDecoder(80));
-    pipeline.addLast("stringEncoder", new StringEncoder(CharsetUtil.UTF_8));
-    pipeline.addLast("stringDecoder", new StringDecoder(CharsetUtil.UTF_8));
+    //pipeline.addLast("stringEncoder", new StringEncoder(CharsetUtil.UTF_8))
+    //pipeline.addLast("stringDecoder", new StringDecoder(CharsetUtil.UTF_8))
     pipeline.addLast("aggregator", new HttpChunkAggregator(chunkSize))
     pipeline.addLast("handler", routeHandler)
 

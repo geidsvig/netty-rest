@@ -7,9 +7,10 @@ import org.jboss.netty.util.CharsetUtil
 import akka.event.LoggingAdapter
 import org.jboss.netty.channel.Channel
 import akka.actor.actorRef2Scala
+import geidsvig.netty.rest.ChannelWithRequest
 
 trait WebSocketManagerRequirements {
-  val webSocketSessionHandlerFactory: WebSocketSessionHandlerFactory
+  val webSocketSessionFactory: WebSocketSessionFactory
   val logger: LoggingAdapter
 }
 
@@ -23,7 +24,7 @@ abstract class WebSocketManager {
    * 2) distributed system can use guardian ring to distribute handlers
    * 3) or could use memcache to store uuid -> sessionHandler actor
    */
-  def handleWebSocketRequest(request: WebSocketRequest) {
+  def handleWebSocketRequest(request: ChannelWithRequest) {
     Option(request.request.getHeader("uuid")) match {
       case Some(uuid) => {
         // check if we have registered the handler.
@@ -33,7 +34,7 @@ abstract class WebSocketManager {
         hasRegisteredHandler(uuid) match {
           case Some(handler) => sendWebSocketFrame(Option(request.ctx.getChannel()), "DUPLICATE")
           case None => {
-            val handler = webSocketSessionHandlerFactory.createWebSocketSessionHandler()
+            val handler = webSocketSessionFactory.createWebSocketHandler(uuid)
             handler ! request
           }
         }
@@ -46,6 +47,7 @@ abstract class WebSocketManager {
   /**
    * Simple websocket push method.
    *
+   * @param channel
    * @param payload
    */
   def sendWebSocketFrame(channel: Option[Channel], payload: String) {

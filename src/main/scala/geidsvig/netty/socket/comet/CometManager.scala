@@ -10,6 +10,7 @@ import akka.actor.actorRef2Scala
 import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import org.jboss.netty.channel.ChannelFutureListener
 import org.jboss.netty.handler.codec.http.HttpRequest
+import geidsvig.netty.rest.ChannelWithRequest
 
 trait CometManagerRequirements {
   val cometHandlerFactory: CometHandlerFactory
@@ -26,7 +27,7 @@ abstract class CometManager {
    * 2) distributed system can use guardian ring to distribute handlers
    * 3) or could use memcache to store uuid -> cometHandler actor
    */
-  def handleCometRequest(request: CometRequest) {
+  def handleCometRequest(request: ChannelWithRequest) {
     Option(request.request.getHeader("uuid")) match {
       case Some(uuid) => {
         // check if we have registered the handler.
@@ -39,7 +40,7 @@ abstract class CometManager {
             sendCometResponse(Option(request.ctx.getChannel()), request.request, response)
           }
           case None => {
-            val handler = cometHandlerFactory.createCometHandler()
+            val handler = cometHandlerFactory.createCometHandler(uuid)
             handler ! request
           }
         }

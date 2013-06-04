@@ -10,7 +10,7 @@ import geidsvig.netty.socket.comet.CometManager
 import geidsvig.netty.socket.ws.WebSocketManager
 import geidsvig.netty.socket.comet.CometHandlerFactory
 import geidsvig.netty.socket.comet.CometManagerRequirements
-import geidsvig.netty.socket.ws.WebSocketSessionHandlerFactory
+import geidsvig.netty.socket.ws.WebSocketSessionFactory
 import geidsvig.netty.socket.ws.WebSocketManagerRequirements
 import geidsvig.netty.rest.status.StatusHandler
 import org.scalatest.FunSpec
@@ -52,7 +52,7 @@ object RestRouteHandlerTest {
     RestPathHandler(HttpMethod.GET, new Regex("""/status"""), statusHandler))
 
   class MockCometHandlerFactory extends CometHandlerFactory {
-    def createCometHandler(): ActorRef = voidActor
+    def createCometHandler(uuid: String): ActorRef = voidActor
   }
 
   trait TestCometManagerDependencies extends CometManagerRequirements {
@@ -66,12 +66,12 @@ object RestRouteHandlerTest {
     def deregisterHandler(uuid: String) {}
   }
 
-  class MockWebSocketSessionHandlerFactory extends WebSocketSessionHandlerFactory {
-    def createWebSocketSessionHandler(): ActorRef = voidActor
+  class MockWebSocketHandlerFactory extends WebSocketSessionFactory {
+    def createWebSocketHandler(uuid: String): ActorRef = voidActor
   }
 
   trait TestWebSocketManagerDependencies extends WebSocketManagerRequirements {
-    val webSocketSessionHandlerFactory: WebSocketSessionHandlerFactory = new MockWebSocketSessionHandlerFactory
+    val webSocketSessionFactory: WebSocketSessionFactory = new MockWebSocketHandlerFactory
     val logger: LoggingAdapter = testSystem.log
   }
 
@@ -86,6 +86,8 @@ object RestRouteHandlerTest {
     val pathsAndHandlers: Set[RestPathHandler] = testPathsAndHandlers
     val cometManager: CometManager = new MockCometManager
     val webSocketManager: WebSocketManager = new MockWebSocketManager
+    val cometEnabled: Boolean = true
+    val websocketEnabled: Boolean = true
   }
 
   class TestRestRouteHandler extends RestRouteHandler with TestRestRouteHandlerDependencies
