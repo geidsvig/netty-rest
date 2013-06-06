@@ -27,7 +27,7 @@ import akka.event.LoggingAdapter
 import geidsvig.netty.rest.ChannelWithRequest
 
 trait WebSocketHandlerRequirements {
-  val webSocketSessionManager: WebSocketManager
+  val webSocketManager: WebSocketManager
 }
 
 /**
@@ -46,12 +46,12 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
   var webSocketConnectionHandler: WebSocketConnectionHandler = null
 
   override def preStart() {
-    webSocketSessionManager.registerHandler(uuid)
+    webSocketManager.registerHandler(uuid)
     webSocketConnectionHandler = new WebSocketConnectionHandler(log, self)
   }
   
   override def postStop() {
-    webSocketSessionManager.deregisterHandler(uuid)
+    webSocketManager.deregisterHandler(uuid)
   }
 
   def receive = {
