@@ -27,8 +27,8 @@ abstract class RestServerPipelineFactory extends ChannelPipelineFactory {
 
     pipeline.addLast("httpEncoder", new HttpResponseEncoder)
     pipeline.addLast("httpDecoder", new HttpRequestDecoder)
-    //pipeline.addLast("stringEncoder", new StringEncoder(CharsetUtil.UTF_8))
-    //pipeline.addLast("stringDecoder", new StringDecoder(CharsetUtil.UTF_8))
+    pipeline.addLast("stringEncoder", new StringEncoder(CharsetUtil.UTF_8))
+    pipeline.addLast("stringDecoder", new StringDecoder(CharsetUtil.UTF_8))
     pipeline.addLast("aggregator", new HttpChunkAggregator(chunkSize))
     pipeline.addLast("handler", routeHandler)
 

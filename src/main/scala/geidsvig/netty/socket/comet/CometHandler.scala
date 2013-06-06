@@ -1,11 +1,9 @@
 package geidsvig.netty.socket.comet
 
 import java.util.concurrent.TimeUnit
-
 import scala.collection.JavaConversions.asScalaBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
-
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.channel.ChannelHandlerContext
 import org.jboss.netty.handler.codec.http.DefaultHttpResponse
@@ -14,12 +12,12 @@ import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import org.jboss.netty.handler.codec.http.HttpVersion
 import org.jboss.netty.handler.codec.http.QueryStringDecoder
 import org.jboss.netty.util.CharsetUtil
-
 import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.Cancellable
 import akka.actor.ReceiveTimeout
 import geidsvig.netty.rest.ChannelWithRequest
+import org.jboss.netty.channel.ChannelFutureListener
 
 /**
  * Format is JSON and supprots jsonp callback.
@@ -169,7 +167,8 @@ abstract class CometHandler(uuid: String) extends Actor with ActorLogging {
         Option(ccr.ctx.getChannel) match {
           case Some(chan) if (chan.isOpen) => {
             val response = CometResponse.createResponse(packet.responseStatus, ccr.request, packet.content)
-            chan.write(response)
+            log info (s"Responding with ${response}")
+            chan.write(response).addListener(ChannelFutureListener.CLOSE)
           }
           case Some(chan) => log warning ("Trying to respond {} with closed channel", packet.toJSON)
           case None => log warning ("Trying to respond with no channel. Dropping")
