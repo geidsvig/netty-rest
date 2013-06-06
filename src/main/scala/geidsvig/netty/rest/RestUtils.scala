@@ -98,7 +98,7 @@ trait RestUtils {
   }
 
   /**
-   * Simple function to response over HTTP on the channelHandlerContext with request and response.
+   * Simple function to respond over HTTP on the channelHandlerContext with request and response.
    * Closes channel after writing to channel.
    *
    * @param ctx
@@ -107,7 +107,7 @@ trait RestUtils {
    * @returns option exception
    */
   def sendHttpResponse(ctx: ChannelHandlerContext, request: HttpRequest, response: HttpResponse): Option[Exception] = {
-    Option(ctx.getChannel()) match {
+    Option(ctx.getChannel) match {
       case Some(channel) if (channel.isOpen) => {
         ctx.getChannel().write(response).addListener(writeAndCloseFutureListener)
         None

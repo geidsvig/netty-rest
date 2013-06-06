@@ -1,72 +1,72 @@
 package geidsvig.netty.socket.comet
 
+import java.util.concurrent.TimeUnit
+
+import scala.collection.JavaConversions.asScalaBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
+
+import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.channel.ChannelHandlerContext
+import org.jboss.netty.handler.codec.http.DefaultHttpResponse
 import org.jboss.netty.handler.codec.http.HttpRequest
-import org.jboss.netty.handler.codec.http.HttpResponse
+import org.jboss.netty.handler.codec.http.HttpResponseStatus
+import org.jboss.netty.handler.codec.http.HttpVersion
 import org.jboss.netty.handler.codec.http.QueryStringDecoder
+import org.jboss.netty.util.CharsetUtil
+
 import akka.actor.Actor
 import akka.actor.ActorLogging
-import akka.actor.ReceiveTimeout
 import akka.actor.Cancellable
-import scala.concurrent.duration.Duration
-import java.util.concurrent.TimeUnit
-import scala.concurrent.ExecutionContext.Implicits.global
-import org.jboss.netty.handler.codec.http.HttpResponseStatus
-import org.jboss.netty.handler.codec.http.DefaultHttpResponse
-import org.jboss.netty.handler.codec.http.HttpVersion
-import org.jboss.netty.buffer.ChannelBuffers
-import org.jboss.netty.util.CharsetUtil
-import scala.collection.JavaConversions.asScalaBuffer
-import org.jboss.netty.channel.ChannelFutureListener
-import scala.collection.immutable.Nil
+import akka.actor.ReceiveTimeout
 import geidsvig.netty.rest.ChannelWithRequest
 
+/**
+ * Format is JSON and supprots jsonp callback.
+ *
+ * @param statusCode an HTTP status code
+ * @param content JSON formatted content
+ * @param callback
+ */
+case class CometPacket(responseStatus: HttpResponseStatus, content: String) {
   /**
-   * Format is JSON and supprots jsonp callback.
-   *
-   * @param statusCode an HTTP status code
-   * @param content JSON formatted content
-   * @param callback
+   * This helper method wraps a status code and JSON content into a single response string.
    */
-  case class CometPacket(responseStatus: HttpResponseStatus, content: String) {
-    /**
-     * This helper method wraps a status code and JSON content into a single response string.
-     */
-    def toJSON() = {
-      """{content:%s}""".format(content)
-    }
+  def toJSON() = {
+    """{content:%s}""".format(content)
   }
+}
 
-  object CometResponse {
+object CometResponse {
 
-    /**
-     * Create javascript jsonp based long polling comet response.
-     *
-     * TODO if there is no callback. maybe we want to change our response protocol from jsonp to XMLHttpRequest (XHR)?
-     *
-     * @param responseStatus
-     * @param callback
-     * @param content
-     */
-    def createResponse(responseStatus: HttpResponseStatus, request: HttpRequest, content: String) = {
-      val decoder = new QueryStringDecoder(request.getUri)
-      val params = decoder.getParameters
-      val callback = params.containsKey("callback") match {
-        case true => params.get("callback").headOption
-        case false => None
-      }
-
-      val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, responseStatus)
-      response.setHeader("Content-Type", "text/javascript")
-      val text = callback match {
-        case Some(cb) => s"${cb}(${content})"
-        case None => content
-      }
-      response.setContent(ChannelBuffers.copiedBuffer(text, CharsetUtil.UTF_8))
-      response
+  /**
+   * Create javascript jsonp based long polling comet response.
+   *
+   * TODO if there is no callback. maybe we want to change our response protocol from jsonp to XMLHttpRequest (XHR)?
+   *
+   * @param responseStatus
+   * @param callback
+   * @param content
+   */
+  def createResponse(responseStatus: HttpResponseStatus, request: HttpRequest, content: String) = {
+    val decoder = new QueryStringDecoder(request.getUri)
+    val params = decoder.getParameters
+    val callback = params.containsKey("callback") match {
+      case true => params.get("callback").headOption
+      case false => None
     }
 
+    val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, responseStatus)
+    response.setHeader("Content-Type", "text/javascript")
+    val text = callback match {
+      case Some(cb) => s"${cb}(${content})"
+      case None => content
+    }
+    response.setContent(ChannelBuffers.copiedBuffer(text, CharsetUtil.UTF_8))
+    response
   }
+
+}
 
 trait CometHandlerRequirements {
   val receiveTimeout: Long

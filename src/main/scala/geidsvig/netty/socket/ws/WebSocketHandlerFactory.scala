@@ -2,7 +2,7 @@ package geidsvig.netty.socket.ws
 
 import akka.actor.ActorRef
 
-abstract class WebSocketSessionFactory {
+abstract class WebSocketHandlerFactory {
 
   /**
    * 

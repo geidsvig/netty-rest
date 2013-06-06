@@ -2,27 +2,28 @@ package geidsvig.netty.socket.ws
 
 import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.channel.Channel
+import org.jboss.netty.channel.ChannelFuture
+import org.jboss.netty.channel.ChannelFutureListener
 import org.jboss.netty.channel.ChannelHandlerContext
 import org.jboss.netty.channel.MessageEvent
 import org.jboss.netty.channel.SimpleChannelUpstreamHandler
+import org.jboss.netty.handler.codec.http.HttpHeaders
+import org.jboss.netty.handler.codec.http.HttpRequest
 import org.jboss.netty.handler.codec.http.websocketx.CloseWebSocketFrame
 import org.jboss.netty.handler.codec.http.websocketx.PingWebSocketFrame
 import org.jboss.netty.handler.codec.http.websocketx.PongWebSocketFrame
 import org.jboss.netty.handler.codec.http.websocketx.TextWebSocketFrame
+import org.jboss.netty.handler.codec.http.websocketx.WebSocketFrame
 import org.jboss.netty.handler.codec.http.websocketx.WebSocketServerHandshaker
 import org.jboss.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory
-import org.jboss.netty.handler.codec.http.websocketx.WebSocketFrame
-import org.jboss.netty.handler.codec.http.HttpHeaders
-import org.jboss.netty.handler.codec.http.HttpRequest
 import org.jboss.netty.util.CharsetUtil
-import akka.actor.actorRef2Scala
-import akka.actor.{ Actor, ActorLogging }
+
+import akka.actor.Actor
+import akka.actor.ActorLogging
 import akka.actor.ActorRef
 import akka.actor.PoisonPill
+import akka.actor.actorRef2Scala
 import akka.event.LoggingAdapter
-import org.jboss.netty.channel.ChannelFutureListener
-import org.jboss.netty.channel.ChannelFuture
-import scala.util.matching.Regex
 import geidsvig.netty.rest.ChannelWithRequest
 
 trait WebSocketHandlerRequirements {

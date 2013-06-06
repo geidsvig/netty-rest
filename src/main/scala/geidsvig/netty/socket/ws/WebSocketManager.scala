@@ -1,20 +1,19 @@
 package geidsvig.netty.socket.ws
 
+import org.jboss.netty.handler.codec.http.HttpResponseStatus
+
 import akka.actor.ActorRef
-import org.jboss.netty.handler.codec.http.websocketx.TextWebSocketFrame
-import org.jboss.netty.buffer.ChannelBuffers
-import org.jboss.netty.util.CharsetUtil
-import akka.event.LoggingAdapter
-import org.jboss.netty.channel.Channel
 import akka.actor.actorRef2Scala
+import akka.event.LoggingAdapter
 import geidsvig.netty.rest.ChannelWithRequest
+import geidsvig.netty.rest.RestUtils
 
 trait WebSocketManagerRequirements {
-  val webSocketSessionFactory: WebSocketSessionFactory
+  val webSocketHandlerFactory: WebSocketHandlerFactory
   val logger: LoggingAdapter
 }
 
-abstract class WebSocketManager {
+abstract class WebSocketManager extends RestUtils {
   this: WebSocketManagerRequirements =>
 
   /**
@@ -32,29 +31,20 @@ abstract class WebSocketManager {
         // if yes. respond to client that they already have a connection and close the request.ctx.channel
         // if no, then create a new handler, and send it the request
         hasRegisteredHandler(uuid) match {
-          case Some(handler) => sendWebSocketFrame(Option(request.ctx.getChannel()), "DUPLICATE")
           case None => {
-            val handler = webSocketSessionFactory.createWebSocketHandler(uuid)
+            val handler = webSocketHandlerFactory.createWebSocketHandler(uuid)
             handler ! request
+          }
+          case Some(handler) => {
+            val response = createHttpResponse(HttpResponseStatus.CONFLICT, callback(request.request, "Duplicate websocket request for uuid"))
+            sendHttpResponse(request.ctx, request.request, response)
           }
         }
       }
-      case None => sendWebSocketFrame(Option(request.ctx.getChannel()), "MISSING UUID")
-    }
-
-  }
-
-  /**
-   * Simple websocket push method.
-   *
-   * @param channel
-   * @param payload
-   */
-  def sendWebSocketFrame(channel: Option[Channel], payload: String) {
-    channel match {
-      case Some(chan) if (chan.isOpen) => chan.write(new TextWebSocketFrame(ChannelBuffers.copiedBuffer(payload, CharsetUtil.UTF_8)))
-      case Some(chan) => logger warning ("Trying to push {} with closed channel", payload)
-      case None => logger warning ("Trying to push with no channel. Dropping")
+      case None => {
+        val response = createHttpResponse(HttpResponseStatus.BAD_REQUEST, callback(request.request, "Missing uuid"))
+        sendHttpResponse(request.ctx, request.request, response)
+      }
     }
   }
 

@@ -10,7 +10,7 @@ import geidsvig.netty.socket.comet.CometManager
 import geidsvig.netty.socket.ws.WebSocketManager
 import geidsvig.netty.socket.comet.CometHandlerFactory
 import geidsvig.netty.socket.comet.CometManagerRequirements
-import geidsvig.netty.socket.ws.WebSocketSessionFactory
+import geidsvig.netty.socket.ws.WebSocketHandlerFactory
 import geidsvig.netty.socket.ws.WebSocketManagerRequirements
 import geidsvig.netty.rest.status.StatusHandler
 import org.scalatest.FunSpec
@@ -66,12 +66,12 @@ object RestRouteHandlerTest {
     def deregisterHandler(uuid: String) {}
   }
 
-  class MockWebSocketHandlerFactory extends WebSocketSessionFactory {
+  class MockWebSocketHandlerFactory extends WebSocketHandlerFactory {
     def createWebSocketHandler(uuid: String): ActorRef = voidActor
   }
 
   trait TestWebSocketManagerDependencies extends WebSocketManagerRequirements {
-    val webSocketSessionFactory: WebSocketSessionFactory = new MockWebSocketHandlerFactory
+    val webSocketHandlerFactory: WebSocketHandlerFactory = new MockWebSocketHandlerFactory
     val logger: LoggingAdapter = testSystem.log
   }
 
