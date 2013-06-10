@@ -24,7 +24,12 @@ abstract class WebSocketManager extends RestUtils {
    * 3) or could use memcache to store uuid -> sessionHandler actor
    */
   def handleWebSocketRequest(request: ChannelWithRequest) {
-    Option(request.request.getHeader("uuid")) match {
+    
+    /* 
+     * Websockets cannot attach headers on handshake. This is unfortunate...
+     * We will expect the uuid as a query param instead.
+     */
+    extractUuid(request.request) match {
       case Some(uuid) => {
         // check if we have registered the handler.
         // if yes, check if actorRef is alive.

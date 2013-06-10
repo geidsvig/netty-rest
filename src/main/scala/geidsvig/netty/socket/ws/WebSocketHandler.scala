@@ -17,16 +17,25 @@ import org.jboss.netty.handler.codec.http.websocketx.WebSocketFrame
 import org.jboss.netty.handler.codec.http.websocketx.WebSocketServerHandshaker
 import org.jboss.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory
 import org.jboss.netty.util.CharsetUtil
-
 import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.ActorRef
 import akka.actor.PoisonPill
 import akka.actor.actorRef2Scala
+import akka.actor.ReceiveTimeout
 import akka.event.LoggingAdapter
 import geidsvig.netty.rest.ChannelWithRequest
+import org.jboss.netty.channel.ChannelPipeline
+import org.jboss.netty.handler.codec.http.websocket.WebSocketFrameDecoder
+import org.jboss.netty.handler.codec.http.websocket.WebSocketFrameEncoder
+import org.jboss.netty.handler.codec.http.websocketx.WebSocket08FrameDecoder
+import org.jboss.netty.handler.codec.http.websocketx.WebSocket08FrameEncoder
+import org.jboss.netty.channel.ExceptionEvent
+import scala.concurrent.duration.Duration
+import java.util.concurrent.TimeUnit
 
 trait WebSocketHandlerRequirements {
+  val receiveTimeout: Long
   val webSocketManager: WebSocketManager
 }
 
@@ -38,6 +47,8 @@ trait WebSocketHandlerRequirements {
  */
 abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
   this: WebSocketHandlerRequirements =>
+
+  val startTime = System.currentTimeMillis
 
   case class WebSocketPayload(payload: String)
 
@@ -54,10 +65,16 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
     webSocketManager.deregisterHandler(uuid)
   }
 
+  // set default receiveTimeout because trait injected timeout value is not loaded yet
+  context.setReceiveTimeout(Duration.create(5000, TimeUnit.MILLISECONDS))
   def receive = {
-    case ChannelWithRequest(ctx, request) => webSocketConnectionHandler.handleWebsocketHandshake(ctx, request)
+    case ChannelWithRequest(ctx, request) => {
+      webSocketConnectionHandler.handleWebsocketHandshake(ctx, request)
+      context.setReceiveTimeout(Duration.create(receiveTimeout, TimeUnit.MILLISECONDS))
+    }
     case WebSocketPayload(payload) => handlePayload(payload)
     case WebSocketClosed => handleCloseSocket()
+    case ReceiveTimeout => handleReceiveTimeout()
     case other => {
       log warning ("Unsupported operation {}", other.toString())
     }
@@ -83,7 +100,20 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
    * 
    */
   private def handleCloseSocket() = {
-    self ! PoisonPill
+    val endTime = System.currentTimeMillis
+    webSocketConnectionHandler.handleCloseSocket()
+    log info ("WebSocket Handler terminated after {}ms", (endTime - startTime))
+    context.stop(self)
+  }
+  
+  /**
+   * When a receive timeout event occurs, we want to close the current websocket channel.
+   */
+  private def handleReceiveTimeout() {
+    val endTime = System.currentTimeMillis
+    webSocketConnectionHandler.handleCloseSocket()
+    log info ("WebSocket Handler timeout after {}ms", (endTime - startTime))
+    context.stop(self)
   }
 
   /**
@@ -96,11 +126,24 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
     webSocketHandler: ActorRef) extends SimpleChannelUpstreamHandler {
 
     var channel: Option[Channel] = None
+    private val subprotocols = null
+    private val allowExtensions = true
+    
 
     override def messageReceived(ctx: ChannelHandlerContext, msgEvent: MessageEvent) {
       msgEvent.getMessage() match {
-        case close: CloseWebSocketFrame => handleCloseSocket()
-        case frame: WebSocketFrame => handleWebSocketFrame(ctx, frame)
+        case close: CloseWebSocketFrame => {
+          logger info ("client requested closing websocket")
+          webSocketHandler ! WebSocketClosed
+        }
+        case text: TextWebSocketFrame => {
+          val inboundPayload = text.getText
+          logger info ("WebSocket frame text:  " + inboundPayload)
+          webSocketHandler ! WebSocketPayload(inboundPayload)
+        }
+        case ping: PingWebSocketFrame => {
+          ctx.getChannel().write(new PongWebSocketFrame(ping.getBinaryData()))
+        }
         case unhandled => {
           logger warning ("Did not get WebSocketFrame: " + unhandled.getClass().toString())
           logger warning ("Unexpected event toString:  " + unhandled.toString)
@@ -108,6 +151,11 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
           sendWebSocketFrame("BAD REQUEST")
         }
       }
+    }
+    
+    override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
+      logger error (e.getCause, "Exception caught in handler!")
+      webSocketHandler ! WebSocketClosed
     }
 
     /**
@@ -120,7 +168,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
       logger info ("WebSocket protocol:  " + protocol)
 
       val wsLocation = "ws://" + request.getHeader(HttpHeaders.Names.HOST) + "/websocket"
-      val factory = new WebSocketServerHandshakerFactory(wsLocation, null, false)
+      val factory = new WebSocketServerHandshakerFactory(wsLocation, subprotocols, allowExtensions)
 
       Option(factory.newHandshaker(request)) match {
         case None => {
@@ -128,35 +176,24 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
           factory.sendUnsupportedWebSocketVersionResponse(ctx.getChannel)
         }
         case Some(shaker) => {
+          
+          // And fix pipeline so that this handler manages both the channel upstream and downstream flow.
+          // Handshake should have already removed the aggregator, but just in case we make sure it is removed. (Play! does this as well... HACK)
+          Option(ctx.getChannel.getPipeline.get("aggregator")) match {
+            case Some(c) => ctx.getChannel.getPipeline.remove("aggregator")
+            case None => {}
+          }
+          ctx.getChannel.getPipeline.replace("handler", "handler", this)
+          logger info("http pipeline replaced with websocket pipeline")
+          
           shaker.handshake(ctx.getChannel(), request).addListener(WebSocketServerHandshaker.HANDSHAKE_LISTENER)
-          logger debug "Handshake complete"
+          logger info "Handshake complete"
         }
       }
-      channel = Some(ctx.getChannel)
-      sendWebSocketFrame("SOCKET CREATED")
-    }
 
-    /**
-     *
-     * @param ctx
-     * @param frame
-     */
-    def handleWebSocketFrame(ctx: ChannelHandlerContext, frame: WebSocketFrame) {
-      frame match {
-        case text: TextWebSocketFrame => {
-          val inboundPayload = text.getText
-          logger info ("WebSocket frame text:  " + inboundPayload)
-          webSocketHandler ! WebSocketPayload(inboundPayload)
-        }
-        case ping: PingWebSocketFrame => {
-          ctx.getChannel().write(new PongWebSocketFrame(ping.getBinaryData()))
-        }
-        case closing: CloseWebSocketFrame => handleCloseSocket()
-        case somethingElse => {
-          logger warning ("Got an unrecognized WebSocketFrame:  " + somethingElse.getClass.toString)
-          sendWebSocketFrame("BAD REQUEST")
-        }
-      }
+      channel = Some(ctx.getChannel)
+
+      sendWebSocketFrame("SOCKET CREATED")
     }
 
     /**
@@ -167,8 +204,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
     def sendWebSocketFrame(payload: String) {
       channel match {
         case Some(chan) if (chan.isOpen) => chan.write(new TextWebSocketFrame(ChannelBuffers.copiedBuffer(payload, CharsetUtil.UTF_8)))
-        case Some(chan) => logger warning ("Trying to push {} with closed channel", payload)
-        case None => logger warning ("Trying to push with no channel. Dropping")
+        case _ => webSocketHandler ! WebSocketClosed
       }
     }
 
@@ -176,25 +212,13 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
      * Can be used by implementing class to extend method and trigger death of parent actor.
      */
     def handleCloseSocket() {
-      logger info ("WebSocket close.")
       channel match {
-        case Some(chan) => {
-          if (chan.isOpen) {
-            chan.close().addListener(new ChannelFutureListener() {
-              def operationComplete(future: ChannelFuture) {
-                // Perform post-closure operation
-                webSocketHandler ! WebSocketClosed
-              }
-            })
-          } else {
-            logger warning ("Trying to close a closed channel.")
-            webSocketHandler ! WebSocketClosed
-          }
+        case Some(chan) if (chan.isOpen) => {
+          chan.close()
+          channel = None
+          logger info ("WebSocket closed")
         }
-        case None => {
-          logger warning ("Trying to close with no channel.")
-          webSocketHandler ! WebSocketClosed
-        }
+        case _ => {}
       }
     }
 

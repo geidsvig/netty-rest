@@ -21,15 +21,11 @@ abstract class RestServerPipelineFactory extends ChannelPipelineFactory {
   self: RestServerPipelineFactorRequirements =>
 
   def getPipeline() = {
-    val instantiationTime = System.currentTimeMillis()
-
     val pipeline = Channels.pipeline()
 
-    pipeline.addLast("httpEncoder", new HttpResponseEncoder)
-    pipeline.addLast("httpDecoder", new HttpRequestDecoder)
-    pipeline.addLast("stringEncoder", new StringEncoder(CharsetUtil.UTF_8))
-    pipeline.addLast("stringDecoder", new StringDecoder(CharsetUtil.UTF_8))
+    pipeline.addLast("decoder", new HttpRequestDecoder)
     pipeline.addLast("aggregator", new HttpChunkAggregator(chunkSize))
+    pipeline.addLast("encoder", new HttpResponseEncoder)
     pipeline.addLast("handler", routeHandler)
 
     logger info "Pipeline created"

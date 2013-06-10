@@ -71,7 +71,7 @@ abstract class RestRouteHandler extends SimpleChannelUpstreamHandler
      */
     var handled = false
     pathsAndHandlers map { pathHandler =>
-      logger info ("checking {} {} {}", pathHandler.httpMethod, pathHandler.regex, pathHandler.actorRef)
+      //logger info ("checking {} {} {}", pathHandler.httpMethod, pathHandler.regex, pathHandler.actorRef)
       (method, path) match {
         case (httpMethod, requestedPath) if pathMatches(requestedPath, pathHandler.regex) => {
           logger info ("matching handler found for {} {} {}", httpMethod, pathHandler.regex, pathHandler.actorRef)
