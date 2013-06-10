@@ -129,6 +129,9 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
     private val subprotocols = null
     private val allowExtensions = true
     
+    //FIXME standardize on return strings for clients
+    private val SOCKETCREATED = "SOCKET CREATED"
+    private val BADREQUEST = "BAD REQUEST"
 
     override def messageReceived(ctx: ChannelHandlerContext, msgEvent: MessageEvent) {
       msgEvent.getMessage() match {
@@ -136,6 +139,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
           logger info ("client requested closing websocket")
           webSocketHandler ! WebSocketClosed
         }
+        //TODO support BinaryWebSocketFrame
         case text: TextWebSocketFrame => {
           val inboundPayload = text.getText
           logger info ("WebSocket frame text:  " + inboundPayload)
@@ -148,7 +152,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
           logger warning ("Did not get WebSocketFrame: " + unhandled.getClass().toString())
           logger warning ("Unexpected event toString:  " + unhandled.toString)
           //respond with invalid frame msg
-          sendWebSocketFrame("BAD REQUEST")
+          sendWebSocketFrame(BADREQUEST)
         }
       }
     }
@@ -167,6 +171,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
       val protocol = request.getHeader(HttpHeaders.Names.WEBSOCKET_PROTOCOL)
       logger info ("WebSocket protocol:  " + protocol)
 
+      //TODO support both ws and wss
       val wsLocation = "ws://" + request.getHeader(HttpHeaders.Names.HOST) + "/websocket"
       val factory = new WebSocketServerHandshakerFactory(wsLocation, subprotocols, allowExtensions)
 
@@ -193,7 +198,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
 
       channel = Some(ctx.getChannel)
 
-      sendWebSocketFrame("SOCKET CREATED")
+      sendWebSocketFrame(SOCKETCREATED)
     }
 
     /**
