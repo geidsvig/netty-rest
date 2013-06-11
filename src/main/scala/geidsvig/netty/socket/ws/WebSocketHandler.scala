@@ -34,8 +34,14 @@ import org.jboss.netty.channel.ExceptionEvent
 import scala.concurrent.duration.Duration
 import java.util.concurrent.TimeUnit
 
+/**
+ * @param receiveTimeout the amount of time in millis where no inbound nor outbound messages occur before Actor shutsdown
+ * @param useTLS refers to enabling Transport Layer Security (TLS)/Secure Sockets Layer (SSL)
+ * @param webSocketManager
+ */
 trait WebSocketHandlerRequirements {
   val receiveTimeout: Long
+  val useTLS: Boolean
   val webSocketManager: WebSocketManager
 }
 
@@ -60,7 +66,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
     webSocketManager.registerHandler(uuid)
     webSocketConnectionHandler = new WebSocketConnectionHandler(log, self)
   }
-  
+
   override def postStop() {
     webSocketManager.deregisterHandler(uuid)
   }
@@ -82,7 +88,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
 
   /**
    * An abstract method to be dealt with by the implementing class.
-   * 
+   *
    * @param payload
    */
   def handlePayload(payload: String)
@@ -97,6 +103,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
   }
 
   /**
+   * Handle the closing of the websocket and shutting down self.
    * 
    */
   private def handleCloseSocket() = {
@@ -105,9 +112,10 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
     log info ("WebSocket Handler terminated after {}ms", (endTime - startTime))
     context.stop(self)
   }
-  
+
   /**
-   * When a receive timeout event occurs, we want to close the current websocket channel.
+   * When a receive timeout event occurs, we want to close the current websocket channel and shut down self.
+   * 
    */
   private def handleReceiveTimeout() {
     val endTime = System.currentTimeMillis
@@ -123,15 +131,14 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
    * @param parentActorRef the WebSocketHandler that instantiates this class
    */
   class WebSocketConnectionHandler(logger: LoggingAdapter,
-    webSocketHandler: ActorRef) extends SimpleChannelUpstreamHandler {
+    webSocketHandler: ActorRef) extends SimpleChannelUpstreamHandler with TextFrameBuilder {
 
     var channel: Option[Channel] = None
     private val subprotocols = null
     private val allowExtensions = true
-    
-    //FIXME standardize on return strings for clients
-    private val SOCKETCREATED = "SOCKET CREATED"
-    private val BADREQUEST = "BAD REQUEST"
+
+    private val SOCKETCREATED = ResponseTextFrame(200, "connected").toJson
+    private val BADREQUEST = ResponseTextFrame(400, "bad request").toJson
 
     override def messageReceived(ctx: ChannelHandlerContext, msgEvent: MessageEvent) {
       msgEvent.getMessage() match {
@@ -139,7 +146,6 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
           logger info ("client requested closing websocket")
           webSocketHandler ! WebSocketClosed
         }
-        //TODO support BinaryWebSocketFrame
         case text: TextWebSocketFrame => {
           val inboundPayload = text.getText
           logger info ("WebSocket frame text:  " + inboundPayload)
@@ -156,14 +162,23 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
         }
       }
     }
-    
+
+    /**
+     * Override exceptionCaught because we have to...
+     * Also, if something does cause an exception, we tell our parent webSocketHandler to handle WebSocketClosed.
+     * 
+     * @param ctx
+     * @param e an ExceptionEvent
+     */
     override def exceptionCaught(ctx: ChannelHandlerContext, e: ExceptionEvent) {
       logger error (e.getCause, "Exception caught in handler!")
       webSocketHandler ! WebSocketClosed
     }
 
     /**
-     *
+     * Handles the handshake. Supports both with and without Transport Layer Security (TLS)/Secure Sockets Layer (SSL).
+     * Updates the pipeline from HTTP to websocket so that the RestRouteHandler is no longer in control of the channel.
+     * 
      * @param ctx
      * @param request
      */
@@ -171,8 +186,11 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
       val protocol = request.getHeader(HttpHeaders.Names.WEBSOCKET_PROTOCOL)
       logger info ("WebSocket protocol:  " + protocol)
 
-      //TODO support both ws and wss
-      val wsLocation = "ws://" + request.getHeader(HttpHeaders.Names.HOST) + "/websocket"
+      // supports Transport Layer Security (TLS)/Secure Sockets Layer (SSL) 
+      val wsLocation = useTLS match {
+        case true => "wss://" + request.getHeader(HttpHeaders.Names.HOST) + "/websocket"
+        case false => "ws://" + request.getHeader(HttpHeaders.Names.HOST) + "/websocket"
+      }
       val factory = new WebSocketServerHandshakerFactory(wsLocation, subprotocols, allowExtensions)
 
       Option(factory.newHandshaker(request)) match {
@@ -181,16 +199,16 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
           factory.sendUnsupportedWebSocketVersionResponse(ctx.getChannel)
         }
         case Some(shaker) => {
-          
-          // And fix pipeline so that this handler manages both the channel upstream and downstream flow.
-          // Handshake should have already removed the aggregator, but just in case we make sure it is removed. (Play! does this as well... HACK)
+
+          // Update the pipeline so that this handler manages both the channel upstream and downstream flow.
+          // Handshake should have already removed the aggregator, but just in case we make sure it is removed. (Play! does this as well)
           Option(ctx.getChannel.getPipeline.get("aggregator")) match {
             case Some(c) => ctx.getChannel.getPipeline.remove("aggregator")
             case None => {}
           }
           ctx.getChannel.getPipeline.replace("handler", "handler", this)
-          logger info("http pipeline replaced with websocket pipeline")
-          
+          logger info ("http pipeline replaced with websocket pipeline")
+
           shaker.handshake(ctx.getChannel(), request).addListener(WebSocketServerHandshaker.HANDSHAKE_LISTENER)
           logger info "Handshake complete"
         }

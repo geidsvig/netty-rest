@@ -20,19 +20,16 @@ import geidsvig.netty.rest.ChannelWithRequest
 import org.jboss.netty.channel.ChannelFutureListener
 
 /**
- * Format is JSON and supprots jsonp callback.
+ * A case class to wrap a response status and JSON message.
  *
  * @param statusCode an HTTP status code
  * @param content JSON formatted content
- * @param callback
  */
-case class CometPacket(responseStatus: HttpResponseStatus, content: String) {
+case class CometPacket(responseStatus: HttpResponseStatus, message: String) {
   /**
    * This helper method wraps a status code and JSON content into a single response string.
    */
-  def toJSON() = {
-    """{content:%s}""".format(content)
-  }
+  def toJson() = s"""{"response":{"status":${responseStatus.getCode},"message":${message}}}"""
 }
 
 object CometResponse {
@@ -40,13 +37,11 @@ object CometResponse {
   /**
    * Create javascript jsonp based long polling comet response.
    *
-   * TODO if there is no callback. maybe we want to change our response protocol from jsonp to XMLHttpRequest (XHR)?
-   *
    * @param responseStatus
    * @param callback
    * @param content
    */
-  def createResponse(responseStatus: HttpResponseStatus, request: HttpRequest, content: String) = {
+  def createResponse(responseStatus: HttpResponseStatus, request: HttpRequest, packet: CometPacket) = {
     val decoder = new QueryStringDecoder(request.getUri)
     val params = decoder.getParameters
     val callback = params.containsKey("callback") match {
@@ -57,8 +52,8 @@ object CometResponse {
     val response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, responseStatus)
     response.setHeader("Content-Type", "text/javascript")
     val text = callback match {
-      case Some(cb) => s"${cb}(${content})"
-      case None => content
+      case Some(cb) => s"${cb}(${packet.toJson})"
+      case None => packet.toJson
     }
     response.setContent(ChannelBuffers.copiedBuffer(text, CharsetUtil.UTF_8))
     response
@@ -166,11 +161,11 @@ abstract class CometHandler(uuid: String) extends Actor with ActorLogging {
       case Some(ccr) => {
         Option(ccr.ctx.getChannel) match {
           case Some(chan) if (chan.isOpen) => {
-            val response = CometResponse.createResponse(packet.responseStatus, ccr.request, packet.content)
+            val response = CometResponse.createResponse(packet.responseStatus, ccr.request, packet)
             log info (s"Responding with ${response}")
             chan.write(response).addListener(ChannelFutureListener.CLOSE)
           }
-          case Some(chan) => log warning ("Trying to respond {} with closed channel", packet.toJSON)
+          case Some(chan) => log warning ("Trying to respond {} with closed channel", packet.toJson)
           case None => log warning ("Trying to respond with no channel. Dropping")
         }
         handleCancellingCometRequest()
@@ -186,14 +181,8 @@ abstract class CometHandler(uuid: String) extends Actor with ActorLogging {
   private def handleCancellingCometRequest() {
     cancellableCometRequest match {
       case Some(ccr) => {
-        try {
-          // TODO check if canceling a completed scheduled event will cause an exception
-          ccr.cancellable.cancel()
-        } catch {
-          case t: Throwable => {
-            log error (t.toString)
-          }
-        }
+        // can be cancelled infinite times. will only change to isCancelled=true with no side effects
+        ccr.cancellable.cancel()
         cancellableCometRequest = None
       }
       case None => {}
