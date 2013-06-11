@@ -137,8 +137,8 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
     private val subprotocols = null
     private val allowExtensions = true
 
-    private val SOCKETCREATED = ResponseTextFrame(200, "connected").toJson
-    private val BADREQUEST = ResponseTextFrame(400, "bad request").toJson
+    private val SOCKETCREATED = ResponseTextFrame(200, """"connected"""").toJson
+    private val BADREQUEST = ResponseTextFrame(400, """"bad request"""").toJson
 
     override def messageReceived(ctx: ChannelHandlerContext, msgEvent: MessageEvent) {
       msgEvent.getMessage() match {

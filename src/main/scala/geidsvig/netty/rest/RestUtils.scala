@@ -54,7 +54,7 @@ trait RestUtils {
    * @returns content as UTF-8 string.
    */
   def requestBodyAsJSON(request: HttpRequest) = {
-    request.getContent.toString("UTF-8")
+    request.getContent.toString(java.nio.charset.Charset.forName("UTF-8"))
   }
 
   /**
