@@ -8,10 +8,10 @@ The library uses Scala, Akka, and Netty to handle the low level connection manag
 Usage
 -----
 
-1) WebSockets - Extend the WebSocketHandler and implement the abstract methods to handle inbound payloads.
-2) Comet - Extend the CometHandler and implement the abstract methods to handle requests.
-3) HTTP - Create an Akka actor and handle a ChannelWithRequest case class in the receive block.
-4) Configure your routes with your own implementation of the RestRoutehandler class.
+1. WebSockets - Extend the WebSocketHandler and implement the abstract methods to handle inbound payloads.
+2. Comet - Extend the CometHandler and implement the abstract methods to handle requests.
+3. HTTP - Create an Akka actor and handle a ChannelWithRequest case class in the receive block.
+4. Configure your routes with your own implementation of the RestRoutehandler class.
 
 
 Examples
