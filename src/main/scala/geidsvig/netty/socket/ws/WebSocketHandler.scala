@@ -63,7 +63,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
   var webSocketConnectionHandler: WebSocketConnectionHandler = null
 
   override def preStart() {
-    webSocketManager.registerHandler(uuid)
+    webSocketManager.registerHandler(uuid, self)
     webSocketConnectionHandler = new WebSocketConnectionHandler(log, self)
   }
 

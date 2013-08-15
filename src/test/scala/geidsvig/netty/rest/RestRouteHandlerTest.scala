@@ -62,8 +62,8 @@ object RestRouteHandlerTest {
 
   class MockCometManager extends CometManager with TestCometManagerDependencies {
     def hasRegisteredHandler(uuid: String): Option[ActorRef] = None
-    def registerHandler(uuid: String) {}
-    def deregisterHandler(uuid: String) {}
+    def registerHandler(uuid: String, actorRef: ActorRef): Unit = {}
+    def deregisterHandler(uuid: String): Unit = {}
   }
 
   class MockWebSocketHandlerFactory extends WebSocketHandlerFactory {
@@ -77,8 +77,8 @@ object RestRouteHandlerTest {
 
   class MockWebSocketManager extends WebSocketManager with TestWebSocketManagerDependencies {
     def hasRegisteredHandler(uuid: String): Option[ActorRef] = None
-    def registerHandler(uuid: String) {}
-    def deregisterHandler(uuid: String) {}
+    def registerHandler(uuid: String, actorRef: ActorRef): Unit = {}
+    def deregisterHandler(uuid: String): Unit = {}
   }
 
   trait TestRestRouteHandlerDependencies extends RestRouteHandlerRequirements {

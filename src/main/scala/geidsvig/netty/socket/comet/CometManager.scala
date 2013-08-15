@@ -57,14 +57,15 @@ abstract class CometManager extends RestUtils {
 
   /**
    * @param uuid
+   * @param actorRef
    */
-  def registerHandler(uuid: String)
+  def registerHandler(uuid: String, actorRef: ActorRef): Unit
 
   /**
    * Regardless of implementations, the uuid and actorRef for CometHandler should be removed.
    *
    * @param uuid
    */
-  def deregisterHandler(uuid: String)
+  def deregisterHandler(uuid: String): Unit
 
 }

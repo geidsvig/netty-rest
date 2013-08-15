@@ -91,7 +91,7 @@ abstract class CometHandler(uuid: String) extends Actor with ActorLogging {
   var cancellableCometRequest: Option[CancellableCometRequest] = None
 
   override def preStart() {
-    cometManager.registerHandler(uuid)
+    cometManager.registerHandler(uuid, self)
   }
 
   override def postStop() {
