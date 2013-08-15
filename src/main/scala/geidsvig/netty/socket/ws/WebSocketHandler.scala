@@ -45,6 +45,8 @@ trait WebSocketHandlerRequirements {
   val webSocketManager: WebSocketManager
 }
 
+case class TransmitPayload(payload: String)
+
 /**
  * The session handler delegates websocket setup to a WebSocketHandler,
  * and provides hooks for that handler to let this actor know when events have occurred.
@@ -79,6 +81,7 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
       context.setReceiveTimeout(Duration.create(receiveTimeout, TimeUnit.MILLISECONDS))
     }
     case WebSocketPayload(payload) => handlePayload(payload)
+    case TransmitPayload(payload) => sendResponse(payload)
     case WebSocketClosed => handleCloseSocket()
     case ReceiveTimeout => handleReceiveTimeout()
     case other => {
