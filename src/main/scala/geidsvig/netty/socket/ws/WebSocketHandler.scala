@@ -33,6 +33,8 @@ import org.jboss.netty.handler.codec.http.websocketx.WebSocket08FrameEncoder
 import org.jboss.netty.channel.ExceptionEvent
 import scala.concurrent.duration.Duration
 import java.util.concurrent.TimeUnit
+import org.jboss.netty.handler.ssl.SslHandler
+import javax.net.ssl.SSLEngine
 
 /**
  * @param receiveTimeout the amount of time in millis where no inbound nor outbound messages occur before Actor shutsdown
@@ -47,6 +49,10 @@ trait WebSocketHandlerRequirements {
 
 case class TransmitPayload(payload: String)
 
+object WebSocketSSLEngine {
+  val engine = javax.net.ssl.SSLContext.getInstance("TLS").createSSLEngine()
+  engine.setUseClientMode(false)
+}
 /**
  * The session handler delegates websocket setup to a WebSocketHandler,
  * and provides hooks for that handler to let this actor know when events have occurred.
@@ -209,8 +215,19 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
             case Some(c) => ctx.getChannel.getPipeline.remove("aggregator")
             case None => {}
           }
+          
+          if (useTLS) {
+            ctx.getChannel.getPipeline.addLast("ssl", new SslHandler(WebSocketSSLEngine.engine))
+          }
+          
           ctx.getChannel.getPipeline.replace("handler", "handler", this)
           logger info ("http pipeline replaced with websocket pipeline")
+          
+          //if SSL we need to update the pipeline
+//          pipeline.addLast("decoder", new HttpRequestDecoder)
+//          pipeline.addLast("aggregator", new HttpChunkAggregator(chunkSize))
+//          pipeline.addLast("encoder", new HttpResponseEncoder)
+//          pipeline.addLast("handler", routeHandler)
 
           shaker.handshake(ctx.getChannel(), request).addListener(WebSocketServerHandshaker.HANDSHAKE_LISTENER)
           logger info "Handshake complete"
