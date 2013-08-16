@@ -113,7 +113,7 @@ trait RestUtils {
         None
       }
       case _ => {
-        Some(new Exception("Closed channel. Dropping response %s for request: %s %s ".format(response.getStatus, request.getMethod, request.getUri)))
+        Some(new Exception(s"Closed channel. Dropping response ${response.getStatus} for request: ${request.getMethod} ${request.getUri}"))
       }
     }
   }
