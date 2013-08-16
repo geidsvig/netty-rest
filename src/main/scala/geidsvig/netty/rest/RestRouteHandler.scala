@@ -72,28 +72,21 @@ abstract class RestRouteHandler extends SimpleChannelUpstreamHandler
     var handled = false
     pathsAndHandlers map { pathHandler =>
       //logger info ("checking {} {} {}", pathHandler.httpMethod, pathHandler.regex, pathHandler.actorRef)
-      (method, path) match {
-        case (httpMethod, requestedPath) if pathMatches(requestedPath, pathHandler.regex) => {
-          logger info ("matching handler found for {} {} {}", httpMethod, pathHandler.regex, pathHandler.actorRef)
+      if (pathHandler.httpMethod == method && pathMatches(path, pathHandler.regex)) {
+          logger info ("matching handler found for {} {} {}", method, pathHandler.regex, pathHandler.actorRef)
           pathHandler.actorRef ! ChannelWithRequest(ctx, request)
           handled = true
-        }
-        case (_, _) => {}
       }
     }
 
     if (!handled) {
       // check if the request is for comet or websocket
-      (method, path) match {
-        case (httpMethod, requestedPath) if pathMatches(requestedPath, cometPath) && cometEnabled => {
-          cometManager.handleCometRequest(ChannelWithRequest(ctx, request))
-          handled = true
-        }
-        case (httpMethod, requestedPath) if pathMatches(requestedPath, websocketPath) && websocketEnabled => {
-          webSocketManager.handleWebSocketRequest(ChannelWithRequest(ctx, request))
-          handled = true
-        }
-        case (_,_) => {}
+      if (HttpMethod.GET == method && pathMatches(path, cometPath) && cometEnabled) {
+        cometManager.handleCometRequest(ChannelWithRequest(ctx, request))
+        handled = true
+      } else if (HttpMethod.GET == method && pathMatches(path, websocketPath) && websocketEnabled) {
+        webSocketManager.handleWebSocketRequest(ChannelWithRequest(ctx, request))
+        handled = true
       }
     }
 
