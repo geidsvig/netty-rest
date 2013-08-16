@@ -235,8 +235,6 @@ abstract class WebSocketHandler(uuid: String) extends Actor with ActorLogging {
       }
 
       channel = Some(ctx.getChannel)
-
-      sendWebSocketFrame(SOCKETCREATED)
     }
 
     /**
